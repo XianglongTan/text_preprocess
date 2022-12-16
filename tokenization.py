@@ -80,8 +80,6 @@ def postprocess_pred_v1(pred, win=3):
 
 def transform_sequence_to_text(sequence:str, text:str, tokenizer):
     '''
-    将 token sequence 原文(text)
-
     text: 原始文本
     seq_text: 保存还原文本
     eng_text: 暂存 ## 文本，直到英文文本完整再加入 seq_text
@@ -95,42 +93,40 @@ def transform_sequence_to_text(sequence:str, text:str, tokenizer):
             3) 对照原文还原大小写
     '''
     sequence_texts, continue_text = [], []
-    for s_i, sequence in enumerate(sequences):
-        seq_text, eng_text = [], []
-        i = 0
-        while True:
-            if i >= len(sequence):
-                break
-            t = tokenizer.convert_ids_to_tokens(sequence[i])
-            if t == '[UNK]':
-                unk_t = text[len(''.join(continue_text))]
-                seq_text.append(unk_t)
-                continue_text.append(unk_t)
+    seq_text, eng_text = [], []
+    i = 0
+    while True:
+        if i >= len(sequence):
+            break
+        t = tokenizer.convert_ids_to_tokens(sequence[i])
+        if t == '[UNK]':
+            unk_t = text[len(''.join(continue_text))]
+            seq_text.append(unk_t)
+            continue_text.append(unk_t)
+            i += 1
+        elif not has_cut(t):
+            seq_text.append(t)
+            continue_text.append(t)
+            i += 1
+        else:
+            while True:
+                eng_text.append(sequence[i]) 
                 i += 1
-            elif not has_cut(t):
-                seq_text.append(t)
-                continue_text.append(t)
-                i += 1
-            else:
-                while True:
-                    eng_text.append(sequence[i]) 
-                    i += 1
-                    if i < len(sequence):
-                        t = tokenizer.convert_ids_to_tokens(sequence[i])
-                        if not has_cut(tokenizer.convert_ids_to_tokens(sequence[i])): # 搜索直到非英文
-                            break
-                    else:
+                if i < len(sequence):
+                    t = tokenizer.convert_ids_to_tokens(sequence[i])
+                    if not has_cut(tokenizer.convert_ids_to_tokens(sequence[i])): # 搜索直到非英文
                         break
-                decode_eng_text = tokenizer.decode(eng_text)
-                if decode_eng_text.startswith('##'):
-                    decode_eng_text = decode_eng_text.strip('##') # 有时实体识别错误把英文单词一部分识别为实体，另一部分识别为 O, 导致某个 sequence 开头为 ##
-                elif len(sequence_texts) > 0 and has_english(sequence_texts[-1][-1]) and has_english(decode_eng_text[0]) and has_english(continue_text[-1]):
-                    decode_eng_text = ' ' + decode_eng_text 
-                continue_text.append(decode_eng_text)
-                seq_text.append(decode_eng_text)
-                eng_text = []   
-        sequence_texts.append(''.join(seq_text))
-    return sequence_texts
+                else:
+                    break
+            decode_eng_text = tokenizer.decode(eng_text)
+            if decode_eng_text.startswith('##'):
+                decode_eng_text = decode_eng_text.strip('##') # 有时实体识别错误把英文单词一部分识别为实体，另一部分识别为 O, 导致某个 sequence 开头为 ##
+            elif len(sequence_texts) > 0 and has_english(sequence_texts[-1][-1]) and has_english(decode_eng_text[0]) and has_english(continue_text[-1]):
+                decode_eng_text = ' ' + decode_eng_text 
+            continue_text.append(decode_eng_text)
+            seq_text.append(decode_eng_text)
+            eng_text = []   
+    return ''.join(seq_text)
 
 
 def get_doccano_sample_v1(text_sequence, pred_sequence, tokenizer, text, return_raw=False):
